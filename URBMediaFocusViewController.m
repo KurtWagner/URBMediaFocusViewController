@@ -38,7 +38,7 @@ static const CGFloat __blurTintColorAlpha = 0.2f;				// defines how much to tint
 - (UIImage *)urb_applyBlurWithRadius:(CGFloat)blurRadius tintColor:(UIColor *)tintColor saturationDeltaFactor:(CGFloat)saturationDeltaFactor maskImage:(UIImage *)maskImage;
 @end
 
-@interface URBMediaFocusViewController () <UIScrollViewDelegate, UIActionSheetDelegate>
+@interface URBMediaFocusViewController () <UIScrollViewDelegate>
 
 @property (nonatomic, strong) UIView *fromView;
 @property (nonatomic, assign) CGRect fromRect;
@@ -736,16 +736,19 @@ static const CGFloat __blurTintColorAlpha = 0.2f;				// defines how much to tint
 	}
 }
 
-- (void)handleLongPressGesture:(UILongPressGestureRecognizer *)gestureRecognizer {
+- (void)handlePhotoLongPressGesture:(UILongPressGestureRecognizer *)gestureRecognizer {
 	if (gestureRecognizer.state == UIGestureRecognizerStateBegan) {
-		UIActionSheet *actionSheet = [[UIActionSheet alloc] initWithTitle:nil
-																 delegate:self
-														cancelButtonTitle:NSLocalizedString(@"Cancel", nil)
-												   destructiveButtonTitle:nil
-														otherButtonTitles:NSLocalizedString(@"Save Photo", nil), NSLocalizedString(@"Copy Photo", nil), nil];
-		[actionSheet showInView:self.view];
-	}
-}
+ 		[self becomeFirstResponder];
+ 		
+ 		UIMenuItem *saveImageItem = [[UIMenuItem alloc] initWithTitle:NSLocalizedString(@"Save", nil) action:@selector(saveImage:)];
+ 		UIMenuItem *copyImageItem = [[UIMenuItem alloc] initWithTitle:NSLocalizedString(@"Copy", nil) action:@selector(copyImage:)];
+ 		
+ 		UIMenuController *menuController = [UIMenuController sharedMenuController];
+ 		[menuController setMenuItems:@[saveImageItem, copyImageItem]];
+     		[menuController setTargetRect:gestureRecognizer.view.frame inView:gestureRecognizer.view.superview];
+     		[menuController setMenuVisible:YES animated:YES];
+ 	}
+ }
 
 #pragma mark - UIScrollViewDelegate Methods
 
@@ -768,17 +771,6 @@ static const CGFloat __blurTintColorAlpha = 0.2f;				// defines how much to tint
 		scrollView.scrollEnabled = YES;
 	}
 	[self centerScrollViewContents];
-}
-
-#pragma mark - UIActionSheetDelegate
-
-- (void)actionSheet:(UIActionSheet *)actionSheet clickedButtonAtIndex:(NSInteger)buttonIndex {
-	if (buttonIndex == 0) {
-		[self saveImageToLibrary:self.imageView.image];
-	}
-	else if (buttonIndex == 1) {
-		[self copyImage:self.imageView.image];
-	}
 }
 
 #pragma mark - UIGestureRecognizerDelegate Methods

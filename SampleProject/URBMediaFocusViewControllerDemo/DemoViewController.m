@@ -27,6 +27,8 @@
 - (void)viewDidLoad {
     [super viewDidLoad];
 	
+	self.title = @"Demo";
+	
 	if ([self respondsToSelector:@selector(edgesForExtendedLayout)]) {
 		self.edgesForExtendedLayout = UIRectEdgeNone;
 	}
@@ -36,10 +38,12 @@
 	
 	self.mediaFocusController = [[URBMediaFocusViewController alloc] init];
 	self.mediaFocusController.delegate = self;
+	//self.mediaFocusController.shouldBlurBackground = NO;	// uncomment if you don't want the background blurred
+	//self.mediaFocusController.parallaxEnabled = NO;	// uncomment if you don't want the parallax (push-back) effect
 	//self.mediaFocusController.shouldDismissOnTap = NO; // uncomment if you wish to disable dismissing the view on a single tap outside image bounds
 	//self.mediaFocusController.shouldDismissOnImageTap = YES;	// uncomment if you wish to support dismissing view on a single tap on the image itself
 	
-	self.thumbnailView = [[UIImageView alloc] initWithFrame:CGRectMake(30.0, 50.0, 100.0, 100.0)];
+	self.thumbnailView = [[UIImageView alloc] initWithFrame:CGRectMake(20.0, 20.0, 100.0, 100.0)];
 	self.thumbnailView.backgroundColor = [UIColor darkGrayColor];
 	self.thumbnailView.contentMode = UIViewContentModeScaleAspectFill;
 	self.thumbnailView.clipsToBounds = YES;
@@ -48,7 +52,7 @@
 	[self.view addSubview:self.thumbnailView];
 	[self addTapGestureToView:self.thumbnailView];
 	
-	self.remoteThumbnailView = [[UIImageView alloc] initWithFrame:CGRectMake(CGRectGetMinX(self.thumbnailView.frame), CGRectGetMaxY(self.thumbnailView.frame) + 30.0, 100.0, 100.0)];
+	self.remoteThumbnailView = [[UIImageView alloc] initWithFrame:CGRectMake(CGRectGetMinX(self.thumbnailView.frame), CGRectGetMaxY(self.thumbnailView.frame) + 20.0, 100.0, 100.0)];
 	self.remoteThumbnailView.backgroundColor = [UIColor darkGrayColor];
 	self.remoteThumbnailView.contentMode = UIViewContentModeScaleAspectFill;
 	self.remoteThumbnailView.clipsToBounds = YES;
@@ -56,7 +60,7 @@
 	[self.view addSubview:self.remoteThumbnailView];
 	[self addTapGestureToView:self.remoteThumbnailView];
 	
-	self.localThumbnailView = [[UIImageView alloc] initWithFrame:CGRectMake(CGRectGetMinX(self.thumbnailView.frame), CGRectGetMaxY(self.remoteThumbnailView.frame) + 30.0, 100.0, 100.0)];
+	self.localThumbnailView = [[UIImageView alloc] initWithFrame:CGRectMake(CGRectGetMinX(self.thumbnailView.frame), CGRectGetMaxY(self.remoteThumbnailView.frame) + 20.0, 100.0, 100.0)];
 	self.localThumbnailView.backgroundColor = [UIColor darkGrayColor];
 	self.localThumbnailView.contentMode = UIViewContentModeScaleAspectFill;
 	self.localThumbnailView.clipsToBounds = YES;
@@ -65,7 +69,7 @@
 	[self.view addSubview:self.localThumbnailView];
 	[self addTapGestureToView:self.localThumbnailView];
 	
-	self.panoramaThumbnailView = [[UIImageView alloc] initWithFrame:CGRectMake(CGRectGetMinX(self.thumbnailView.frame), CGRectGetMaxY(self.localThumbnailView.frame) + 30.0, 100.0, 100.0)];
+	self.panoramaThumbnailView = [[UIImageView alloc] initWithFrame:CGRectMake(CGRectGetMinX(self.thumbnailView.frame), CGRectGetMaxY(self.localThumbnailView.frame) + 20.0, 100.0, 100.0)];
 	self.panoramaThumbnailView.backgroundColor = [UIColor darkGrayColor];
 	self.panoramaThumbnailView.contentMode = UIViewContentModeScaleAspectFill;
 	self.panoramaThumbnailView.clipsToBounds = YES;
@@ -99,9 +103,11 @@
 	}
 }
 
-- (void)showFocusView:(UITapGestureRecognizer *)gestureRecognizer {
-	//[self.mediaFocusController showImage:[UIImage imageNamed:@"seattle01.jpg"] fromView:self.thumbnailView inView:self.view];
-	
+- (BOOL)shouldAutorotate {
+	return NO;
+}
+
+- (void)showFocusView:(UITapGestureRecognizer *)gestureRecognizer {	
 	if (gestureRecognizer.view == self.localThumbnailView) {
 		[self.mediaFocusController showImage:[UIImage imageNamed:@"raceforfood.jpg"] fromView:gestureRecognizer.view];
 	}

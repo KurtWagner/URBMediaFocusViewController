@@ -7,12 +7,10 @@
 //
 
 #import <Accelerate/Accelerate.h>
-#import <QuartzCore/QuartzCore.h>
 #import <AssetsLibrary/AssetsLibrary.h>
-
 #import "URBMediaFocusViewController.h"
 
-static const CGFloat __overlayAlpha = 0.6f;						// opacity of the black overlay displayed below the focused image
+static const CGFloat __overlayAlpha = 0.7f;						// opacity of the black overlay displayed below the focused image
 static const CGFloat __animationDuration = 0.18f;				// the base duration for present/dismiss animations (except physics-related ones)
 static const CGFloat __maximumDismissDelay = 0.5f;				// maximum time of delay (in seconds) between when image view is push out and dismissal animations begin
 static const CGFloat __resistance = 0.0f;						// linear resistance applied to the image’s dynamic item behavior
@@ -26,17 +24,6 @@ static const CGFloat __backgroundScale = 0.9f;					// defines how much the backg
 static const CGFloat __blurRadius = 2.0f;						// defines how much the background view is blurred
 static const CGFloat __blurSaturationDeltaMask = 0.8f;
 static const CGFloat __blurTintColorAlpha = 0.2f;				// defines how much to tint the background view
-
-@interface UIView (URBMediaFocusViewController)
-- (UIImage *)urb_snapshotImageWithScale:(CGFloat)scale;
-@end
-
-/**
- Pulled from Apple's UIImage+ImageEffects category, but renamed to avoid potential selector name conflicts.
- */
-@interface UIImage (URBImageEffects)
-- (UIImage *)urb_applyBlurWithRadius:(CGFloat)blurRadius tintColor:(UIColor *)tintColor saturationDeltaFactor:(CGFloat)saturationDeltaFactor maskImage:(UIImage *)maskImage;
-@end
 
 @interface URBMediaFocusViewController () <UIScrollViewDelegate>
 
@@ -90,7 +77,6 @@ static const CGFloat __blurTintColorAlpha = 0.2f;				// defines how much to tint
 		self.parallaxEnabled = YES;
 		self.shouldDismissOnTap = YES;
 		self.shouldDismissOnImageTap = NO;
-		self.shouldShowPhotoActions = YES;
 	}
 	return self;
 }
@@ -105,7 +91,7 @@ static const CGFloat __blurTintColorAlpha = 0.2f;				// defines how much to tint
 	self.view.frame = self.keyWindow.bounds;
 	
 	self.backgroundView = [[UIView alloc] initWithFrame:CGRectMake(0, 0, CGRectGetWidth(self.keyWindow.frame), CGRectGetHeight(self.keyWindow.frame))];
-	self.backgroundView.backgroundColor = [UIColor colorWithWhite:0.0f alpha:__overlayAlpha];
+	self.backgroundView.backgroundColor = [UIColor colorWithWhite:0.0f alpha:0.6f];
 	self.backgroundView.alpha = 0.0f;
 	self.backgroundView.autoresizingMask = UIViewAutoresizingFlexibleHeight|UIViewAutoresizingFlexibleWidth;
 	[self.view addSubview:self.backgroundView];
@@ -122,11 +108,6 @@ static const CGFloat __blurTintColorAlpha = 0.2f;				// defines how much to tint
 	self.imageView.contentMode = UIViewContentModeScaleAspectFit;
 	self.imageView.alpha = 0.0f;
 	self.imageView.userInteractionEnabled = YES;
-	// Enable edge antialiasing on 7.0 or later.
-	// This symbol appears pre-7.0 but is not considered public API until 7.0
-	if (([[[UIDevice currentDevice] systemVersion] compare:@"7.0" options:NSNumericSearch] != NSOrderedAscending)) {
-		self.imageView.layer.allowsEdgeAntialiasing = YES;
-	}
 	[self.scrollView addSubview:self.imageView];
 	
 	/* setup gesture recognizers */
@@ -145,12 +126,10 @@ static const CGFloat __blurTintColorAlpha = 0.2f;				// defines how much to tint
 	[self.tapRecognizer requireGestureRecognizerToFail:self.doubleTapRecognizer];
 	[self.view addGestureRecognizer:self.tapRecognizer];
 	
-	// long press gesture recognizer to bring up photo actions (when `shouldShowPhotoActions` is set to YES)
-	if (self.shouldShowPhotoActions) {
-		self.photoLongPressRecognizer = [[UILongPressGestureRecognizer alloc] initWithTarget:self action:@selector(handlePhotoLongPressGesture:)];
-		self.photoLongPressRecognizer.delegate = self;
-		[self.imageView addGestureRecognizer:self.photoLongPressRecognizer];
-	}
+	// add save to album functionality
+	self.photoLongPressRecognizer = [[UILongPressGestureRecognizer alloc] initWithTarget:self action:@selector(handlePhotoLongPressGesture:)];
+	self.photoLongPressRecognizer.delegate = self;
+	[self.imageView addGestureRecognizer:self.photoLongPressRecognizer];
 	
 	// only add pan gesture and physics stuff if we can (e.g., iOS 7+)
 	if (NSClassFromString(@"UIDynamicAnimator")) {
@@ -206,9 +185,10 @@ static const CGFloat __blurTintColorAlpha = 0.2f;				// defines how much to tint
 - (void)showImage:(UIImage *)image fromView:(UIView *)fromView inViewController:(UIViewController *)parentViewController {
 	self.fromView = fromView;
 	//self.targetViewController = parentViewController;
-	UIView *superview = (parentViewController) ? parentViewController.view : fromView.superview;
-	CGRect fromRect = [superview convertRect:fromView.frame toView:nil];
 	
+	CGRect fromRect = [self.view convertRect:fromView.frame fromView:parentViewController.view];
+	NSLog(@"self.view.frame=%@", NSStringFromCGRect(self.view.frame));
+	NSLog(@"fromRect=%@", NSStringFromCGRect(fromRect));
 	[self showImage:image fromRect:fromRect];
 }
 
@@ -217,7 +197,6 @@ static const CGFloat __blurTintColorAlpha = 0.2f;				// defines how much to tint
 
 	[self view]; // make sure view has loaded first
 	_currentOrientation = [UIApplication sharedApplication].statusBarOrientation;
-	//fromRect = CGRectApplyAffineTransform(fromRect, [self transformForOrientation:_currentOrientation]);
 	self.fromRect = fromRect;
 	
 	self.imageView.transform = CGAffineTransformIdentity;
@@ -225,8 +204,8 @@ static const CGFloat __blurTintColorAlpha = 0.2f;				// defines how much to tint
 	self.imageView.alpha = 0.2;
 	
 	// create snapshot of background if parallax is enabled
-	if (self.parallaxEnabled || self.shouldBlurBackground) {
-		[self createViewsForBackground];
+	if (self.parallaxEnabled) {
+		[self createViewsForParallax];
 		
 		// hide status bar, but store whether or not we need to unhide it later when dismissing this view
 		// NOTE: in iOS 7+, this only works if you set `UIViewControllerBasedStatusBarAppearance` to YES in your Info.plist
@@ -248,11 +227,12 @@ static const CGFloat __blurTintColorAlpha = 0.2f;				// defines how much to tint
 	CGPoint midpoint = CGPointMake(CGRectGetMidX(self.view.bounds), CGRectGetMidY(self.view.bounds));
 	CGSize scaledImageSize = CGSizeMake(image.size.width * scale, image.size.height * scale);
 	CGRect targetRect = CGRectMake(midpoint.x - scaledImageSize.width / 2.0, midpoint.y - scaledImageSize.height / 2.0, scaledImageSize.width, scaledImageSize.height);
+	self.imageView.frame = targetRect;
 	
 	// set initial frame of image view to match that of the presenting image
+	//self.imageView.frame = CGRectMake(midpoint.x - image.size.width / 2.0, midpoint.y - image.size.height / 2.0, image.size.width, image.size.height);
 	self.imageView.frame = [self.view convertRect:fromRect fromView:nil];
 	_originalFrame = targetRect;
-	
 	// rotate imageView based on current device orientation
 	[self reposition];
     
@@ -310,10 +290,8 @@ static const CGFloat __blurTintColorAlpha = 0.2f;				// defines how much to tint
 		
 		if (self.snapshotView) {
 			self.blurredSnapshotView.alpha = 1.0f;
-			if (self.parallaxEnabled) {
-				self.blurredSnapshotView.transform = CGAffineTransformScale(CGAffineTransformIdentity, __backgroundScale, __backgroundScale);
-				self.snapshotView.transform = CGAffineTransformScale(CGAffineTransformIdentity, __backgroundScale, __backgroundScale);
-			}
+			self.blurredSnapshotView.transform = CGAffineTransformScale(CGAffineTransformIdentity, __backgroundScale, __backgroundScale);
+			self.snapshotView.transform = CGAffineTransformScale(CGAffineTransformIdentity, __backgroundScale, __backgroundScale);
 		}
 		
 	} completion:^(BOOL finished) {
@@ -336,9 +314,7 @@ static const CGFloat __blurTintColorAlpha = 0.2f;				// defines how much to tint
 	self.fromView = fromView;
 	self.targetViewController = parentViewController;
 	
-	UIView *superview = (parentViewController) ? parentViewController.view : fromView.superview;
-	CGRect fromRect = [superview convertRect:fromView.frame toView:nil];
-	
+	CGRect fromRect = [self.view convertRect:fromView.frame fromView:nil];
 	[self showImageFromURL:url fromRect:fromRect];
 }
 
@@ -436,17 +412,10 @@ static const CGFloat __blurTintColorAlpha = 0.2f;				// defines how much to tint
 	return [UIApplication sharedApplication].keyWindow;
 }
 
-- (void)createViewsForBackground {
+- (void)createViewsForParallax {
 	// container view for window
-	CGRect containerFrame = CGRectMake(0, 0, CGRectGetWidth(self.keyWindow.frame), CGRectGetHeight(self.keyWindow.frame));
-	
 	// inset container view so we can blur the edges, but we also need to scale up so when __backgroundScale is applied, everything lines up
-	// only perform inset if `parallaxEnabled` is YES
-	if (self.parallaxEnabled) {
-		containerFrame.size.width *= 1.0f / __backgroundScale;
-		containerFrame.size.height *= 1.0f / __backgroundScale;
-	}
-	
+	CGRect containerFrame = CGRectMake(0, 0, CGRectGetWidth(self.keyWindow.frame) * (1.0f / __backgroundScale), CGRectGetHeight(self.keyWindow.frame) * (1.0f / __backgroundScale));
 	UIView *containerView = [[UIView alloc] initWithFrame:CGRectIntegral(containerFrame)];
 	containerView.backgroundColor = [UIColor blackColor];
 	
@@ -560,7 +529,6 @@ static const CGFloat __blurTintColorAlpha = 0.2f;				// defines how much to tint
 }
 
 - (void)cleanup {
-	_hasLaidOut = NO;
 	[self.view removeFromSuperview];
 	
 	if (self.targetViewController) {
@@ -592,24 +560,6 @@ static const CGFloat __blurTintColorAlpha = 0.2f;				// defines how much to tint
 	if ([self respondsToSelector:@selector(setNeedsStatusBarAppearanceUpdate)]) {
 		[self setNeedsStatusBarAppearanceUpdate];
 	}
-}
-
-- (void)saveImageToLibrary:(UIImage *)image {
-	ALAssetsLibrary *library = [[ALAssetsLibrary alloc] init];
-	[library writeImageToSavedPhotosAlbum:image.CGImage orientation:(ALAssetOrientation)image.imageOrientation completionBlock:^(NSURL *assetURL, NSError *error) {
-		if (error) {
-			UIAlertView *alertView = [[UIAlertView alloc] initWithTitle:error.localizedDescription
-																message:error.localizedRecoverySuggestion
-															   delegate:nil
-													  cancelButtonTitle:NSLocalizedString(@"OK", nil)
-													  otherButtonTitles:nil];
-			[alertView show];
-		}
-	}];
-}
-
-- (void)copyImage:(UIImage *)image {
-	[UIPasteboard generalPasteboard].image = image;
 }
 
 #pragma mark - Gesture Methods
@@ -740,20 +690,6 @@ static const CGFloat __blurTintColorAlpha = 0.2f;				// defines how much to tint
 	}
 }
 
-- (void)handlePhotoLongPressGesture:(UILongPressGestureRecognizer *)gestureRecognizer {
-	if (gestureRecognizer.state == UIGestureRecognizerStateBegan) {
- 		[self becomeFirstResponder];
- 		
- 		UIMenuItem *saveImageItem = [[UIMenuItem alloc] initWithTitle:NSLocalizedString(@"Save", nil) action:@selector(saveImage:)];
- 		UIMenuItem *copyImageItem = [[UIMenuItem alloc] initWithTitle:NSLocalizedString(@"Copy", nil) action:@selector(copyImage:)];
- 		
- 		UIMenuController *menuController = [UIMenuController sharedMenuController];
- 		[menuController setMenuItems:@[saveImageItem, copyImageItem]];
-     		[menuController setTargetRect:gestureRecognizer.view.frame inView:gestureRecognizer.view.superview];
-     		[menuController setMenuVisible:YES animated:YES];
- 	}
- }
-
 #pragma mark - UIScrollViewDelegate Methods
 
 - (UIView *)viewForZoomingInScrollView:(UIScrollView *)scrollView {
@@ -784,7 +720,7 @@ static const CGFloat __blurTintColorAlpha = 0.2f;				// defines how much to tint
 	BOOL shouldRecognize = transformScale > _minScale;
 	
 	// make sure tap and double tap gestures aren't recognized simultaneously
-	shouldRecognize = shouldRecognize && !([gestureRecognizer isKindOfClass:[UITapGestureRecognizer class]] && [otherGestureRecognizer isKindOfClass:[UITapGestureRecognizer class]]);
+	shouldRecognize = !([gestureRecognizer isKindOfClass:[UITapGestureRecognizer class]] && [otherGestureRecognizer isKindOfClass:[UITapGestureRecognizer class]]);
 	
 	return shouldRecognize;
 }
